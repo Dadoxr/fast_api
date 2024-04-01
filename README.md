@@ -7,12 +7,12 @@
 1) Клонируйте репозиторий на локальную машину:
 
 ```bash
-git clone https://github.com/Dadoxr/fastapi.git
+git clone https://github.com/Dadoxr/fast_api.git
 ```
 2) Перейдите в каталог проекта:
 
 ```bash
-cd fastapi
+cd fast_api
 ```
 4) Установите зависимости:
 
