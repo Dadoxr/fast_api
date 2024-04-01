@@ -5,6 +5,9 @@ upb:
 down:
 	docker compose -f docker-compose-local.yml down --remove-orphans
 
+init:
+	alembic init migrations
+
 revision:
 	alembic revision --autogenerate -m "comment"
 
