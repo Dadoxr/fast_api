@@ -20,17 +20,22 @@ async def create_user(
     current_user: User = Depends(get_current_user_from_token),
 ) -> UserShow:
     user_dal = UserDAL(db=db)
-    try:
-        user = await user_dal.create_user(
-            email=body.email, hashed_password=Hasher.get_hash(body.password)
-        )
-        return UserShow(id=user.id, email=user.email, username=user.username)
+    if await user_dal.is_admin(current_user.id):
+        try:
+            user = await user_dal.create_user(
+                email=body.email, hashed_password=Hasher.get_hash(body.password)
+            )
+            return UserShow(id=user.id, email=user.email, username=user.username)
 
-    except IntegrityError as e:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"User with {body.email} already exists",
-        )
+        except IntegrityError as e:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"User with {body.email} already exists",
+            )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access forbidden",
+    )
 
 
 @users_router.delete("/")
@@ -40,9 +45,13 @@ async def delete_user(
     current_user: User = Depends(get_current_user_from_token),
 ) -> dict[str, str]:
     user_dal = UserDAL(db=db)
-    await user_dal.delete_user(email=body.email)
-    return {"message": f"user {body.email} has been deleted if existed"}
-
+    if await user_dal.is_admin(current_user.id):
+        await user_dal.delete_user(email=body.email)
+        return {"message": f"user {body.email} has been deleted if existed"}
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access forbidden",
+    )
 
 @users_router.get("/")
 async def get_all_users(
@@ -53,12 +62,16 @@ async def get_all_users(
 ) -> list[UserShow]:
 
     user_dal = UserDAL(db=db)
-
-    offset = (page - 1) * size
-    users = await user_dal.get_all_users(offset=offset, limit=size)
-    return [
-        UserShow(id=user.id, username=user.username, email=user.email) for user in users
-    ]
+    if await user_dal.is_admin(current_user.id):
+        offset = (page - 1) * size
+        users = await user_dal.get_all_users(offset=offset, limit=size)
+        return [
+            UserShow(id=user.id, username=user.username, email=user.email) for user in users
+        ]
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access forbidden",
+    )
 
 
 @users_router.post("/role/")
@@ -68,29 +81,33 @@ async def add_user_role(
     current_user: User = Depends(get_current_user_from_token),
 ) -> UserRoleShow | dict[str, str]:
     user_dal = UserDAL(db=db)
-    user = await user_dal.get_user(email=body.email)
-    if user:
-        service_is_exists = await user_dal.check_service_for_user_is_exists(
-            user_id=user.id, service=body.service
-        )
-        if not service_is_exists:
-            role = await user_dal.add_user_role(
-                user_id=user.id, role=body.role, service=body.service
+    if await user_dal.is_admin(current_user.id):
+        user = await user_dal.get_user(email=body.email)
+        if user:
+            service_is_exists = await user_dal.check_service_for_user_is_exists(
+                user_id=user.id, service=body.service
             )
-            return UserRoleShow(
-                id=role.id,
-                user_id=user.id,
-                username=user.username,
-                email=user.email,
-                role=role.role,
-                service=role.service,
-            )
+            if not service_is_exists:
+                role = await user_dal.add_user_role(
+                    user_id=user.id, role=body.role, service=body.service
+                )
+                return UserRoleShow(
+                    id=role.id,
+                    user_id=user.id,
+                    username=user.username,
+                    email=user.email,
+                    role=role.role,
+                    service=role.service,
+                )
 
-        return {
-            "message": f"Service {body.service} with user {body.email} exists. Change method to patch"
-        }
-    return {"message": f"User with {body.email} does not exists"}
-
+            return {
+                "message": f"Service {body.service} with user {body.email} exists. Change method to patch"
+            }
+        return {"message": f"User with {body.email} does not exists"}
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access forbidden",
+    )
 
 @users_router.patch("/role/")
 async def update_user_role(
@@ -99,24 +116,29 @@ async def update_user_role(
     current_user: User = Depends(get_current_user_from_token),
 ) -> UserRoleShow | dict[str, str]:
     user_dal = UserDAL(db=db)
-    user = await user_dal.get_user(email=body.email)
-    if user:
-        service_is_exists = await user_dal.check_service_for_user_is_exists(
-            user_id=user.id, service=body.service
-        )
-        if service_is_exists:
-            role: UserRole = await user_dal.update_user_role(
-                user_id=user.id, role=body.role, service=body.service
+    if await user_dal.is_admin(current_user.id):
+        user = await user_dal.get_user(email=body.email)
+        if user:
+            service_is_exists = await user_dal.check_service_for_user_is_exists(
+                user_id=user.id, service=body.service
             )
-            return UserRoleShow(
-                id=role.id,
-                user_id=user.id,
-                username=user.username,
-                email=user.email,
-                role=role.role,
-                service=role.service,
-            )
-        return {
-            "message": f"Service {body.service} with user {body.email} exists. Change method to post"
-        }
-    return {"message": f"User with {body.email} does not exists"}
+            if service_is_exists:
+                role: UserRole = await user_dal.update_user_role(
+                    user_id=user.id, role=body.role, service=body.service
+                )
+                return UserRoleShow(
+                    id=role.id,
+                    user_id=user.id,
+                    username=user.username,
+                    email=user.email,
+                    role=role.role,
+                    service=role.service,
+                )
+            return {
+                "message": f"Service {body.service} with user {body.email} exists. Change method to post"
+            }
+        return {"message": f"User with {body.email} does not exists"}
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail=f"Access forbidden",
+    )

@@ -14,7 +14,7 @@ from db.models import User
 from db.database import get_db
 from services.hashing import Hasher
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/login/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 
 async def _get_user_by_email_for_auth(email: str, db: AsyncSession):

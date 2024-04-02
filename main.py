@@ -6,8 +6,9 @@ from api.login_handler import login_router
 app = FastAPI()
 main_router = APIRouter()
 
+main_router.include_router(login_router, prefix="/token", tags=["token"])
 main_router.include_router(users_router, prefix="/users", tags=["users"])
-main_router.include_router(login_router, prefix="/login", tags=["login"])
+
 app.include_router(main_router)
 
 if __name__ == "__main__":
